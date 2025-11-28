@@ -38,47 +38,44 @@ sequenceDiagram
 ```
 
 
-## Usage
+## Installation
 
-### Prerequisites
-- Python 3.14+
-- `uv` (for dependency management)
+### Normal Usage
 
+```shell
+pip install latterdns
+```
 
-### Installation
-1. Clone the repository:
+### Development
+
 ```shell
 git clone https://github.com/itsamirhn/latterdns.git
-```
-
-2. Change into the project directory:
-```shell
 cd latterdns
+uv pip install -e .
 ```
 
-3. Change into the project directory and Install dependencies using `uv`:
-```shell
-uv sync
-```
 
-### Running the Proxy
+## Usage
 
-Start the proxy on a custom port (default is 1053 to avoid requiring root privileges).
+Once installed, you can run LatterDNS from anywhere using the `latterdns` command.
 
 ```shell
 # Basic usage (defaults to listening on port 1053)
-python main.py
+latterdns
 
 # Custom upstream (Google DNS) and stricter timeouts
-python main.py --upstream-host 8.8.8.8 --latter-timeout 0.15
+latterdns --upstream-host 8.8.8.8 --latter-timeout 0.15
+
+# Enable debug logging
+latterdns --log-level DEBUG
 ```
 
 **Available Options:**
 
-You can view all options anytime by running `python main.py --help`:
+You can view all options anytime by running `latterdns --help`:
 
 ```
-Usage: main.py [OPTIONS]
+Usage: latterdns [OPTIONS]
 
   LatterDNS - Returns the latter DNS response packet from upstream.
 

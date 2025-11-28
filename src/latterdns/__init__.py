@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import socket
 import logging
 import binascii
@@ -152,7 +151,3 @@ def main(
         former_timeout=former_timeout,
         latter_timeout=latter_timeout,
     )
-
-
-if __name__ == "__main__":
-    main()
