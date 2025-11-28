@@ -31,13 +31,16 @@ def log_dns_info(data, label):
 def forward_query_choose_latter(query_wire, upstream, former_timeout, latter_timeout):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+    # Connect to upstream to ensure we only receive from this specific server
+    sock.connect(upstream)
+
     # Send query upstream
-    sock.sendto(query_wire, upstream)
+    sock.send(query_wire)
 
     # --- FORMER packet ---
     sock.settimeout(former_timeout)
     try:
-        former, addr = sock.recvfrom(MAX_DNS_PACKET)
+        former = sock.recv(MAX_DNS_PACKET)
         logging.info(f"UPSTREAM-FORMER: {len(former)} bytes HEX={hex_dump(former)}")
         log_dns_info(former, "UPSTREAM-FORMER-PARSED")
     except socket.timeout:
@@ -48,7 +51,7 @@ def forward_query_choose_latter(query_wire, upstream, former_timeout, latter_tim
     # --- LATTER packet ---
     sock.settimeout(latter_timeout)
     try:
-        latter, addr = sock.recvfrom(MAX_DNS_PACKET)
+        latter = sock.recv(MAX_DNS_PACKET)
         logging.info(f"UPSTREAM-LATTER: {len(latter)} bytes HEX={hex_dump(latter)}")
         log_dns_info(latter, "UPSTREAM-LATTER-PARSED")
         sock.close()
