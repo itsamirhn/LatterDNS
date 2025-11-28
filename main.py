@@ -2,7 +2,7 @@
 import socket
 import logging
 import binascii
-import argparse
+import click
 import dns.message
 import dns.flags
 
@@ -91,37 +91,66 @@ def run_dns_latter_choose(
             logging.info("No response returned to client")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="DNS Latter Choose Proxy")
-    parser.add_argument(
-        "--listen-port", type=int, default=1053, help="Port to listen on"
-    )
-    parser.add_argument(
-        "--upstream-host", type=str, default="1.1.1.1", help="Upstream DNS host"
-    )
-    parser.add_argument(
-        "--upstream-port", type=int, default=53, help="Upstream DNS port"
-    )
-    parser.add_argument(
-        "--former-timeout", type=float, default=1.0, help="Timeout for former packet"
-    )
-    parser.add_argument(
-        "--latter-timeout", type=float, default=0.1, help="Timeout for latter packet"
-    )
-    parser.add_argument("--log-level", type=str, default="INFO", help="Logging level")
-    args = parser.parse_args()
-
+@click.command()
+@click.option(
+    "--listen-port",
+    type=int,
+    default=1053,
+    show_default=True,
+    help="Port to listen on",
+)
+@click.option(
+    "--upstream-host",
+    type=str,
+    default="1.1.1.1",
+    show_default=True,
+    help="Upstream DNS host",
+)
+@click.option(
+    "--upstream-port",
+    type=int,
+    default=53,
+    show_default=True,
+    help="Upstream DNS port",
+)
+@click.option(
+    "--former-timeout",
+    type=float,
+    default=1.0,
+    show_default=True,
+    help="Timeout for former packet",
+)
+@click.option(
+    "--latter-timeout",
+    type=float,
+    default=0.1,
+    show_default=True,
+    help="Timeout for latter packet",
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False
+    ),
+    default="INFO",
+    show_default=True,
+    help="Logging level",
+)
+def main(
+    listen_port, upstream_host, upstream_port, former_timeout, latter_timeout, log_level
+):
+    """LatterDNS - Returns the latter DNS response packet from upstream."""
     logging.basicConfig(
-        level=args.log_level.upper(),
+        level=log_level.upper(),
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
 
     run_dns_latter_choose(
-        listen_port=args.listen_port,
-        upstream_host=args.upstream_host,
-        upstream_port=args.upstream_port,
-        former_timeout=args.former_timeout,
-        latter_timeout=args.latter_timeout,
+        listen_port=listen_port,
+        upstream_host=upstream_host,
+        upstream_port=upstream_port,
+        former_timeout=former_timeout,
+        latter_timeout=latter_timeout,
     )
 
 

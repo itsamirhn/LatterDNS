@@ -73,17 +73,25 @@ python main.py
 python main.py --upstream-host 8.8.8.8 --latter-timeout 0.15
 ```
 
-**Arguments:**
+**Available Options:**
 
-|                    |             |                                                                 |
-|--------------------|-------------|-----------------------------------------------------------------|
-| **Argument**       | **Default** | **Description**                                                 |
-| `--listen-port`    | `1053`      | Local port to listen on.                                        |
-| `--upstream-host`  | `1.1.1.1`   | The real DNS server to forward queries to.                      |
-| `--upstream-port`  | `53`        | The real DNS server port.                                       |
-| `--former-timeout` | `2.0`       | Max time to wait for the _first_ packet.                        |
-| `--latter-timeout` | `0.1`       | How long to wait for a _second_ packet after the first arrives. |
+You can view all options anytime by running `python main.py --help`:
 
+```
+Usage: main.py [OPTIONS]
+
+  LatterDNS - Returns the latter DNS response packet from upstream.
+
+Options:
+  --listen-port INTEGER           Port to listen on  [default: 1053]
+  --upstream-host TEXT            Upstream DNS host  [default: 1.1.1.1]
+  --upstream-port INTEGER         Upstream DNS port  [default: 53]
+  --former-timeout FLOAT          Timeout for former packet  [default: 1.0]
+  --latter-timeout FLOAT          Timeout for latter packet  [default: 0.1]
+  --log-level [DEBUG|INFO|WARNING|ERROR|CRITICAL]
+                                  Logging level  [default: INFO]
+  --help                          Show this message and exit.
+```
 
 ## 🧪 How to Test
 
