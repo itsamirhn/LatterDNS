@@ -38,7 +38,9 @@ Issues = "https://github.com/itsamirhn/latterdns/issues"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.5.0",
     "ruff>=0.14.6",
+    "ty>=0.0.1a28",
 ]
 
 [tool.ruff]

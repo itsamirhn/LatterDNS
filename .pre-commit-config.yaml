@@ -1,0 +1,13 @@
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.14.6
+  hooks:
+    - id: ruff-check
+      args: [ --fix ]
+    - id: ruff-format
+- repo: local
+  hooks:
+    - id: ty
+      name: ty check
+      entry: ty check . --ignore unresolved-import
+      language: python
