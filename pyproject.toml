@@ -40,3 +40,54 @@ Issues = "https://github.com/itsamirhn/latterdns/issues"
 dev = [
     "ruff>=0.14.6",
 ]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "Q",      # flake8-quotes
+    "RET",    # flake8-return
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate
+    "PL",     # pylint
+    "RUF",    # ruff-specific rules
+    "PERF",   # perflint
+    "FURB",   # refurb
+    "LOG",    # flake8-logging
+    "S",      # flake8-bandit (security)
+    "A",      # flake8-builtins
+    "COM",    # flake8-commas
+    "DTZ",    # flake8-datetimez
+    "T20",    # flake8-print
+    "ARG",    # flake8-unused-arguments
+]
+ignore = [
+    "COM812", # trailing comma (conflicts with formatter)
+    "ISC001", # single line implicit string concatenation (conflicts with formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+
+[tool.ruff.lint.isort]
+known-first-party = ["latterdns"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
