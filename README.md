@@ -4,6 +4,7 @@
 
 > "The truth arrives late."
 
+This project is inspired by prior research on DNS censorship, especially the measurement work in [“How Great is the Great Firewall? Measuring China’s DNS Censorship” (2021)](https://arxiv.org/abs/2106.02167). That paper documents the race condition between forged and legitimate DNS packets, which this tool leverages in practice.
 
 ## How It Works
 
