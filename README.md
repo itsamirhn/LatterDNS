@@ -84,7 +84,7 @@ Options:
   --upstream-host TEXT            Upstream DNS host  [default: 1.1.1.1]
   --upstream-port INTEGER         Upstream DNS port  [default: 53]
   --former-timeout FLOAT          Timeout for former packet  [default: 1.0]
-  --latter-timeout FLOAT          Timeout for latter packet  [default: 0.1]
+  --latter-timeout FLOAT          Timeout for latter packet  [default: 0.5]
   --log-level [DEBUG|INFO|WARNING|ERROR|CRITICAL]
                                   Logging level  [default: INFO]
   --help                          Show this message and exit.
