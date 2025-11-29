@@ -5,49 +5,32 @@ import socket
 from contextlib import suppress
 
 import click
-import dns.flags
-import dns.message
 
-logger: logging.Logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
-MAX_DNS_PACKET: int = 65535
+MAX_DNS_PACKET = 65535
 
 
-def hex_dump(data: bytes, limit: int = 200) -> str:
-    hexed: str = binascii.hexlify(data).decode()
+def hex_dump(data, limit=200):
+    hexed = binascii.hexlify(data).decode()
     return hexed[:limit] + "...(truncated)" if len(hexed) > limit else hexed
 
 
-def log_dns_info(data: bytes, label: str) -> None:
-    """Parse packet and log basic DNS info."""
-    try:
-        parsed: dns.message.Message = dns.message.from_wire(data)
-        flags: str = dns.flags.to_text(parsed.flags)
-        logger.debug(
-            f"{label}: "
-            f"ID={parsed.id} FLAGS={flags} OPCODE={parsed.opcode()} "
-            f"RCODE={parsed.rcode()} Q={len(parsed.question)} A={len(parsed.answer)} "
-            f"AUTH={len(parsed.authority)} ADD={len(parsed.additional)}"
-        )
-    except Exception:
-        logger.error(f"{label}: Failed to parse DNS packet")
-
-
 async def forward_query_choose_latter(
-    query_wire: bytes,
-    upstream_host: str,
-    upstream_port: int,
-    former_timeout: float,
-    latter_timeout: float,
-) -> bytes | None:
+    query_wire,
+    upstream_addr,
+    timeouts,
+):
     """Forward DNS query to upstream and choose latter response."""
-    sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setblocking(False)
 
-    try:
-        sock.connect((upstream_host, upstream_port))
+    former_timeout, latter_timeout = timeouts
 
-        loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
+    try:
+        sock.connect(upstream_addr)
+
+        loop = asyncio.get_event_loop()
 
         # Send query
         await loop.sock_sendall(sock, query_wire)
@@ -55,33 +38,31 @@ async def forward_query_choose_latter(
 
         # --- FORMER packet ---
         try:
-            former: bytes = await asyncio.wait_for(loop.sock_recv(sock, MAX_DNS_PACKET), timeout=former_timeout)
-            logger.debug(f"UPSTREAM-FORMER RAW: {len(former)} bytes HEX={hex_dump(former)}")
-            log_dns_info(former, "UPSTREAM-FORMER-PARSED")
+            former = await asyncio.wait_for(loop.sock_recv(sock, MAX_DNS_PACKET), timeout=former_timeout)
+            logger.debug(f"Former packet received: {len(former)} bytes HEX={hex_dump(former)}")
         except TimeoutError:
-            logger.warning("Upstream former timeout")
+            logger.warning("Former packet timeout")
             return None
         except Exception as e:
-            logger.error(f"Error receiving former packet: {e}")
+            logger.error(f"Former packet receive error: {e}")
             return None
 
         # --- LATTER packet ---
-        result: bytes = former
+        result = former
         try:
-            latter: bytes = await asyncio.wait_for(loop.sock_recv(sock, MAX_DNS_PACKET), timeout=latter_timeout)
-            logger.debug(f"UPSTREAM-LATTER RAW: {len(latter)} bytes HEX={hex_dump(latter)}")
-            log_dns_info(latter, "UPSTREAM-LATTER-PARSED")
-            logger.info("Upstream latter packet selected")
+            latter = await asyncio.wait_for(loop.sock_recv(sock, MAX_DNS_PACKET), timeout=latter_timeout)
+            logger.debug(f"Latter packet received: {len(latter)} bytes HEX={hex_dump(latter)}")
+            logger.info("Latter packet selected")
             result = latter
         except TimeoutError:
-            logger.info("Latter timeout — using former response")
+            logger.info("Latter packet timeout, using former packet")
         except Exception as e:
-            logger.error(f"Error receiving latter packet: {e}")
+            logger.error(f"Latter packet receive error: {e}")
 
         return result
 
     except Exception as e:
-        logger.error(f"Error in forward_query_choose_latter: {e}")
+        logger.error(f"Upstream query error: {e}")
         return None
     finally:
         with suppress(Exception):
@@ -89,76 +70,69 @@ async def forward_query_choose_latter(
 
 
 async def handle_client_query(
-    query_wire: bytes,
-    client_addr: tuple[str, int],
-    server_sock: socket.socket,
-    upstream_config: dict[str, str | int | float],
-) -> None:
+    query_wire,
+    client_addr,
+    server_sock,
+    upstream_addr,
+    timeouts,
+):
     """Handle a single client DNS query."""
-    logger.info(f"Client query from {client_addr}")
-    logger.debug(f"CLIENT RAW: {len(query_wire)} bytes HEX={hex_dump(query_wire)}")
-    log_dns_info(query_wire, "CLIENT-PARSED")
+    logger.info(f"Query received from {client_addr}")
+    logger.debug(f"Query packet: {len(query_wire)} bytes HEX={hex_dump(query_wire)}")
 
-    response: bytes | None = await forward_query_choose_latter(
+    response = await forward_query_choose_latter(
         query_wire,
-        str(upstream_config["host"]),
-        int(upstream_config["port"]),
-        float(upstream_config["former_timeout"]),
-        float(upstream_config["latter_timeout"]),
+        upstream_addr,
+        timeouts,
     )
 
     if response:
-        loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
+        loop = asyncio.get_event_loop()
         await loop.sock_sendto(server_sock, response, client_addr)
         logger.info(f"Response sent to {client_addr}")
     else:
-        logger.warning(f"No response returned to client {client_addr}")
+        logger.warning(f"No response available for {client_addr}")
 
 
 async def run_dns_latter_choose(
-    listen_port: int,
-    upstream_host: str,
-    upstream_port: int,
-    former_timeout: float,
-    latter_timeout: float,
-) -> None:
+    *,
+    listen_addr,
+    upstream_addr,
+    timeouts,
+):
     """Run the DNS proxy server."""
-    server_sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_sock.setblocking(False)
 
+    listen_host, listen_port = listen_addr
+    upstream_host, upstream_port = upstream_addr
+    former_timeout, latter_timeout = timeouts
+
     try:
-        server_sock.bind(("0.0.0.0", listen_port))  # noqa: S104
-        logger.info(f"LatterDNS listening on UDP {listen_port} → upstream {upstream_host}:{upstream_port}")
+        server_sock.bind(listen_addr)
+        logger.info(f"LatterDNS listening on {listen_host}:{listen_port} → upstream {upstream_host}:{upstream_port}")
         logger.info(f"Timeouts: former={former_timeout}s, latter={latter_timeout}s")
     except Exception as e:
-        logger.critical(f"Failed to bind UDP port {listen_port}: {e}")
+        logger.critical(f"Failed to bind {listen_host}:{listen_port}: {e}")
         return
 
-    loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
+    loop = asyncio.get_event_loop()
 
-    upstream_config: dict[str, str | int | float] = {
-        "host": upstream_host,
-        "port": upstream_port,
-        "former_timeout": former_timeout,
-        "latter_timeout": latter_timeout,
-    }
-
-    tasks: set[asyncio.Task[None]] = set()
+    tasks = set()
 
     try:
         while True:
             # Receive query from client
-            query_wire: bytes
-            client_addr: tuple[str, int]
             query_wire, client_addr = await loop.sock_recvfrom(server_sock, MAX_DNS_PACKET)
 
             # Handle query in a separate task (allows concurrent processing)
-            task: asyncio.Task[None] = asyncio.create_task(
+            task = asyncio.create_task(
                 handle_client_query(
                     query_wire,
                     client_addr,
                     server_sock,
-                    upstream_config,
+                    upstream_addr,
+                    timeouts,
                 )
             )
             tasks.add(task)
@@ -222,13 +196,13 @@ async def run_dns_latter_choose(
     help="Logging level",
 )
 def main(  # noqa: PLR0913
-    listen_port: int,
-    upstream_host: str,
-    upstream_port: int,
-    former_timeout: float,
-    latter_timeout: float,
-    log_level: str,
-) -> None:
+    listen_port,
+    upstream_host,
+    upstream_port,
+    former_timeout,
+    latter_timeout,
+    log_level,
+):
     """LatterDNS - Returns the latter DNS response packet from upstream."""
     logging.basicConfig(
         level=log_level.upper(),
@@ -237,10 +211,8 @@ def main(  # noqa: PLR0913
 
     asyncio.run(
         run_dns_latter_choose(
-            listen_port=listen_port,
-            upstream_host=upstream_host,
-            upstream_port=upstream_port,
-            former_timeout=former_timeout,
-            latter_timeout=latter_timeout,
+            listen_addr=("0.0.0.0", listen_port),  # noqa: S104
+            upstream_addr=(upstream_host, upstream_port),
+            timeouts=(former_timeout, latter_timeout),
         )
     )
