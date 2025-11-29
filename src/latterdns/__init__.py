@@ -207,7 +207,7 @@ async def run_dns_latter_choose(
 @click.option(
     "--latter-timeout",
     type=float,
-    default=0.1,
+    default=0.5,
     show_default=True,
     help="Timeout for latter packet",
 )
