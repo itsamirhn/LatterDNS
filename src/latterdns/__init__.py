@@ -21,11 +21,9 @@ async def forward_query_choose_latter(
     upstream_addr,
     timeouts,
 ):
-    """Forward DNS query to upstream and choose latter response."""
+    """Forward DNS query to upstream and wait for multiple packets with individual timeouts."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setblocking(False)
-
-    former_timeout, latter_timeout = timeouts
 
     try:
         sock.connect(upstream_addr)
@@ -36,30 +34,26 @@ async def forward_query_choose_latter(
         await loop.sock_sendall(sock, query_wire)
         logger.debug("Query sent to upstream")
 
-        # --- FORMER packet ---
-        try:
-            former = await asyncio.wait_for(loop.sock_recv(sock, MAX_DNS_PACKET), timeout=former_timeout)
-            logger.debug(f"Former packet received: {len(former)} bytes HEX={hex_dump(former)}")
-        except TimeoutError:
-            logger.warning("Former packet timeout")
-            return None
-        except Exception as e:
-            logger.error(f"Former packet receive error: {e}")
-            return None
+        packets = []
 
-        # --- LATTER packet ---
-        result = former
-        try:
-            latter = await asyncio.wait_for(loop.sock_recv(sock, MAX_DNS_PACKET), timeout=latter_timeout)
-            logger.debug(f"Latter packet received: {len(latter)} bytes HEX={hex_dump(latter)}")
-            logger.info("Latter packet selected")
-            result = latter
-        except TimeoutError:
-            logger.info("Latter packet timeout, using former packet")
-        except Exception as e:
-            logger.error(f"Latter packet receive error: {e}")
+        for i, timeout_ms in enumerate(timeouts, start=1):
+            timeout_s = timeout_ms / 1000.0
+            try:
+                packet = await asyncio.wait_for(loop.sock_recv(sock, MAX_DNS_PACKET), timeout=timeout_s)
+                logger.debug(f"Packet {i} received: {len(packet)} bytes HEX={hex_dump(packet)}")
+                packets.append(packet)
+            except TimeoutError:
+                logger.info(f"Packet {i} timeout after {timeout_ms}ms, returning last received packet")
+                break
+            except Exception as e:
+                logger.error(f"Packet {i} receive error: {e}")
+                break
 
-        return result
+        if packets:
+            logger.info(f"Returning packet {len(packets)} of {len(timeouts)}")
+            return packets[-1]
+        logger.warning("No packets received")
+        return None
 
     except Exception as e:
         logger.error(f"Upstream query error: {e}")
@@ -106,12 +100,13 @@ async def run_dns_latter_choose(
 
     listen_host, listen_port = listen_addr
     upstream_host, upstream_port = upstream_addr
-    former_timeout, latter_timeout = timeouts
 
     try:
         server_sock.bind(listen_addr)
-        logger.info(f"LatterDNS listening on {listen_host}:{listen_port} → upstream {upstream_host}:{upstream_port}")
-        logger.info(f"Timeouts: former={former_timeout}s, latter={latter_timeout}s")
+        logger.info(
+            f"MultiPacketDNS listening on {listen_host}:{listen_port} → upstream {upstream_host}:{upstream_port}"
+        )
+        logger.info(f"Timeouts (milliseconds): {timeouts}")
     except Exception as e:
         logger.critical(f"Failed to bind {listen_host}:{listen_port}: {e}")
         return
@@ -172,18 +167,12 @@ async def run_dns_latter_choose(
     help="Upstream DNS port",
 )
 @click.option(
-    "--former-timeout",
-    type=float,
-    default=1.0,
+    "--timeouts",
+    type=int,
+    multiple=True,
+    default=[100, 500],
     show_default=True,
-    help="Timeout for former packet",
-)
-@click.option(
-    "--latter-timeout",
-    type=float,
-    default=0.5,
-    show_default=True,
-    help="Timeout for latter packet",
+    help="Timeout values in milliseconds (can be specified multiple times, e.g., --timeouts 100 --timeouts 500)",
 )
 @click.option(
     "--log-level",
@@ -195,12 +184,11 @@ async def run_dns_latter_choose(
     show_default=True,
     help="Logging level",
 )
-def main(  # noqa: PLR0913
+def main(
     listen_port,
     upstream_host,
     upstream_port,
-    former_timeout,
-    latter_timeout,
+    timeouts,
     log_level,
 ):
     """LatterDNS - Returns the latter DNS response packet from upstream."""
@@ -209,10 +197,15 @@ def main(  # noqa: PLR0913
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
 
+    if not timeouts:
+        raise click.BadParameter("At least one timeout value is required")
+    if any(t <= 0 for t in timeouts):
+        raise click.BadParameter("All timeout values must be positive")
+
     asyncio.run(
         run_dns_latter_choose(
             listen_addr=("0.0.0.0", listen_port),  # noqa: S104
             upstream_addr=(upstream_host, upstream_port),
-            timeouts=(former_timeout, latter_timeout),
+            timeouts=list(timeouts),
         )
     )
