@@ -103,9 +103,7 @@ async def run_dns_latter_choose(
 
     try:
         server_sock.bind(listen_addr)
-        logger.info(
-            f"MultiPacketDNS listening on {listen_host}:{listen_port} → upstream {upstream_host}:{upstream_port}"
-        )
+        logger.info(f"LatterDNS listening on {listen_host}:{listen_port} → upstream {upstream_host}:{upstream_port}")
         logger.info(f"Timeouts (milliseconds): {timeouts}")
     except Exception as e:
         logger.critical(f"Failed to bind {listen_host}:{listen_port}: {e}")
