@@ -64,11 +64,14 @@ Once installed, you can run LatterDNS from anywhere using the `latterdns` comman
 # Basic usage (defaults to listening on port 1053)
 latterdns
 
-# Custom upstream (Google DNS) and stricter timeouts
-latterdns --upstream-host 8.8.8.8 --latter-timeout 0.15
+# Custom upstream (Google DNS) and custom timeouts
+latterdns --upstream-host 8.8.8.8 --timeouts 150 --timeouts 600
 
 # Enable debug logging
 latterdns --log-level DEBUG
+
+# Multiple timeout values for packet collection
+latterdns --timeouts 50 --timeouts 200 --timeouts 500
 ```
 
 **Available Options:**
@@ -84,12 +87,14 @@ Options:
   --listen-port INTEGER           Port to listen on  [default: 1053]
   --upstream-host TEXT            Upstream DNS host  [default: 1.1.1.1]
   --upstream-port INTEGER         Upstream DNS port  [default: 53]
-  --former-timeout FLOAT          Timeout for former packet  [default: 1.0]
-  --latter-timeout FLOAT          Timeout for latter packet  [default: 0.5]
+  --timeouts INTEGER              Timeout values in milliseconds (can be
+                                  specified multiple times, e.g., --timeouts
+                                  100 --timeouts 500)  [default: 100, 500]
   --log-level [DEBUG|INFO|WARNING|ERROR|CRITICAL]
                                   Logging level  [default: INFO]
   --help                          Show this message and exit.
 ```
+
 
 ## 🧪 How to Test
 
@@ -112,6 +117,6 @@ dig @127.0.0.1 -p 1053 facebook.com +short
 
 ## ⚠️ Limitations & Trade-offs
 
-- **Latency for Unblocked Domains:** For unblocked domains (where the GFW sends nothing), the proxy receives the legitimate packet first. It _must_ wait `latter-timeout` (default 0.1s) to ensure no other packet is coming before returning the result. This adds \~100ms latency to every unblocked query.
+- **Latency for Unblocked Domains:** For unblocked domains (where the GFW sends nothing), the proxy receives the legitimate packet first. It waits for the first timeout (default 100ms) to check for additional packets before returning the result. This adds latency to every query.
 
-- **Packet Loss:** If the legitimate packet (the second one) is lost in transit, the proxy will timeout and return the first packet (the fake one), failing to bypass the block.
+- **Packet Loss:** If the legitimate packet (the latter one) is lost in transit, the proxy will timeout and return the last received packet (potentially the fake one), failing to bypass the block.
